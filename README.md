@@ -350,7 +350,7 @@ wrapper.eq(Goods::getStatus, "已上架");
 
 ### 4.5 接口并发压测（JMeter）
 
-`test/jmeter/` 下提供了一份可直接运行的 JMeter 测试计划 `并发测试.jmx`，用于验证接口在并发下的基本可用性，而不是只靠手工点击。
+`test/jmeter/` 下提供了一份可直接运行的 JMeter 测试计划 `并发测试.jmx`，用于在真实调用链下验证接口的功能可用性与响应表现，而不是只靠手工点击。
 
 **压测配置**
 
@@ -363,6 +363,10 @@ wrapper.eq(Goods::getStatus, "已上架");
 | 请求总量 | 100 线程 × 3 轮 × 3 个 ≈ 900 次 |
 
 **执行链路**：先 `POST /web/login` 登录，用 **JSON 后置处理器**从响应中提取 `$.data.token`，再通过 HTTP 信息头管理器把 token 注入后续的 `GET /goods/front/page`（商品列表）与 `GET /article/page`（资讯列表）请求，最后用**响应断言**校验登录接口 `code=200`。这构成了「一次登录 → 携带凭证访问业务接口」的真实调用链，而不是对单个接口做孤立打点。
+
+> **⚠️ 关于"100 线程"的实际含义**：线程组配置是 100 线程 / ramp-up 5 秒，但结果文件中的 `allThreads`（实际并发线程数）**峰值只有个位数**。原因是三个接口响应都在 1–68 ms 量级，每个线程 3 轮循环在几十毫秒内即执行完毕并退出，而线程是分 5 秒逐步启动的——**线程尚未爬升到位，先启动的线程已经结束了**。
+>
+> 因此本次压测的定位是**接口在真实调用链下的功能可用性验证**（900 次请求零失败），**不能代表 100 用户并发下的性能表现**。若要测出真实的高并发能力，应把 ramp-up 拉长到 30–60 秒、或用 `Synchronizing Timer` 让请求真正同时发出，并配合更长的持续时长。
 
 **运行方式**
 
@@ -382,16 +386,39 @@ jmeter -g test/jmeter/result.jtl -o test/jmeter/report
 
 > **登录凭证已外置**：`.jmx` 中的账号密码通过 `${__P(jmeter.login.username,2021001)}` 形式读取 JMeter 属性，默认值是 `sql/init.sql` 中的演示账号，仓库内不含任何真实用户凭据。
 
-**实测结果**（单机开发环境，应用与 MySQL 同机）
+**实测结果**（单机开发环境，应用与 MySQL 同机；数据取自 `test/jmeter/report/statistics.json`）
 
 | 指标 | 结果 |
 | --- | --- |
-| 平均响应时间 | 【待补充】 |
-| 90% 响应时间（TP90） | 【待补充】 |
-| 错误率 | 【待补充】 |
-| 吞吐量（TPS） | 【待补充】 |
+| 请求总量 | 900 |
+| 成功 / 失败 | 900 / 0 |
+| 错误率 | **0.00%** |
+| 平均响应时间 | **9.51 ms** |
+| 中位数响应时间 | 6 ms |
+| 最小 / 最大响应时间 | 1 ms / 68 ms |
+| **90% 响应时间（TP90）** | **40 ms** |
+| 95% 响应时间 | 53.97 ms |
+| 总耗时 | 4.98 秒 |
+| **吞吐量** | **180.7 请求/秒** |
+| 接收 / 发送速率 | 930.4 / 62.3 KB/s |
 
-> 以上四项请把聚合报告里的真实数字填进来。**空着比编一个数好**——面试官如果追问数据来源，编的数字会让你很难收场。
+**按接口拆分**
+
+| 接口 | 样本数 | 平均 | 中位数 | 最大 | 吞吐量 |
+| --- | --- | --- | --- | --- | --- |
+| `POST /web/login` | 300 | 5.55 ms | 3 ms | 56 ms | 60.4/s |
+| `GET /goods/front/page` | 300 | 11.39 ms | 7 ms | 49 ms | 60.7/s |
+| `GET /article/page` | 300 | 11.59 ms | 7 ms | 68 ms | 60.9/s |
+
+登录接口（含密码校验与 JWT 签发）平均 5.55 ms，是最快的；两个列表接口约 11 ms，明显更重——两者都要走 `LambdaQueryWrapper` 拼接 + 分页查询 + JSON 序列化，商品列表单次返回约 8.4 KB，是响应体积最大的一个。
+
+**重新生成报告**（基于已保存的结果文件，无需重新压测）：
+
+```bash
+jmeter -g test/jmeter/test.jtl -o test/jmeter/report
+```
+
+打开 `test/jmeter/report/index.html` 可查看完整图表；原始统计值在 `test/jmeter/report/statistics.json`。
 
 **关于 `test/jmeter/test.csv`**：这是为登录接口做参数化准备的账号数据文件。当前 `.jmx` **尚未配置 CSV Data Set Config**，因此运行时不会读取该文件；如需在此基础上改成多账号并发，在登录请求前加一个 CSV Data Set Config，文件名指向 `test/jmeter/test.csv`，变量名设为 `username,password`，再把请求体改为 `${username}` / `${password}` 即可。
 
@@ -606,6 +633,7 @@ User one = getOne(Wrappers.<User>lambdaQuery()
 - 前端 WebSocket 地址在 `front/Chat.vue` 中硬编码为 `ws://localhost:9090`，换环境需要改代码。`vue/config/config.default.js` 目前只导出了 `serverHost`，建议把 WebSocket 地址也抽取到这里统一管理。
 - `notice.info` 的字段长度是 `VARCHAR(255)`，公告正文稍长即会被截断或写入失败，建议改为 `TEXT`。
 - `application.yaml` 中配置了 `mapper-locations: classpath:mapper/*.xml`，但 `src/main/resources/` 下**并不存在 `mapper/` 目录**——全项目的持久层都通过 MyBatis-Plus 的 `BaseMapper` + `LambdaQueryWrapper` 完成，没有手写 XML。该配置项目前是无效配置，应删除或补上 XML 目录，避免后来者误以为项目使用 XML 映射。
+- 压测脚本的线程配置与负载模型不匹配：`并发测试.jmx` 设为 100 线程 / ramp-up 5 秒，但接口响应在毫秒级，线程在爬升期内即执行完毕退出，实测并发峰值只有个位数（见 [4.5 节](#45-接口并发压测jmeter)）。若要真正评估并发能力，需要拉长 ramp-up、使用 `Synchronizing Timer` 强制同步发起，并延长持续时间、分离测试数据。
 
 ---
 
