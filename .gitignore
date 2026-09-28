@@ -50,10 +50,11 @@ uploads/
 dump*.sql
 *_dump.sql
 
-# 测试运行产物（压测报告、结果文件）
+# 测试运行产物（压测结果与 HTML 报告）
 *.jtl
 *.xls
 *.xlsx
+test/jmeter/report/
 
 # 其他
 *.tmp
