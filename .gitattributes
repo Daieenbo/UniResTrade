@@ -1,0 +1,14 @@
+# 让 GitHub 正确识别项目语言（避免把 Vue 前端或 node_modules 统计成主语言）
+*.java   linguist-language=Java
+*.vue    linguist-language=Vue
+*.js     linguist-language=JavaScript
+*.scss   linguist-language=SCSS
+
+# 文档类不计入语言统计
+*.md     linguist-documentation
+*.sql    linguist-documentation
+
+# 排除第三方与构建产物
+vue/node_modules/*  linguist-vendored
+vue/dist/*          linguist-generated
+target/*            linguist-generated

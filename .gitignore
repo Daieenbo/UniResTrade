@@ -1,0 +1,66 @@
+# 编译产物
+target/
+build/
+out/
+*.class
+*.jar
+*.war
+!.mvn/wrapper/maven-wrapper.jar
+
+# 前端依赖与构建产物
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# 日志
+logs/
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# 本地配置与敏感信息（不要提交真实密码）
+# 注意：项目实际使用的是 .yaml 扩展名（application.yaml），两种写法都要覆盖
+src/main/resources/application.yml
+src/main/resources/application.yaml
+src/main/resources/application-*.yml
+src/main/resources/application-*.yaml
+!src/main/resources/application-example.yml
+!src/main/resources/application-example.yaml
+.env
+.env.local
+
+# 运行时上传的文件（用户上传的图片等，不入库）
+files/
+uploads/
+
+# 数据库导出文件（可能含真实数据，务必脱敏后再决定是否提交）
+*.sql.bak
+dump*.sql
+*_dump.sql
+
+# 测试运行产物（压测报告、结果文件）
+*.jtl
+*.xls
+*.xlsx
+
+# 其他
+*.tmp
+*.bak
+
+# ── 例外：JMeter 压测脚本需要纳入版本管理 ──────────────────────────
+# 注意：目录本身若被整体排除，其内部文件的否定规则不会生效，因此这里
+# 只排除压测的「运行产物」，而把脚本与参数文件显式保留。
+!test/jmeter/*.jmx
+!test/jmeter/*.csv
